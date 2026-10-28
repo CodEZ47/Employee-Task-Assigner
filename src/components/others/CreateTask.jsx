@@ -5,11 +5,14 @@ const emptyForm = { title: '', description: '', category: '', dueDate: '', assig
 const toForm = (task) =>
   task ? { title: task.title, description: task.description, category: task.category, dueDate: task.dueDate } : emptyForm
 
-const toPayload = ({ assigneeId, ...fields }, isEditing) =>
-  isEditing ? fields : { ...fields, assigneeId: assigneeId || null }
+const toPayload = ({ assigneeId, dueDate, ...fields }, isEditing, canEditDueDate) => {
+  const payload = canEditDueDate ? { ...fields, dueDate } : fields
+  return isEditing ? payload : { ...payload, assigneeId: assigneeId || null }
+}
 
 // Edits `task` when given, otherwise creates. Assignee is only chosen on create.
-const CreateTask = ({ task, members = [], categories = [], onSubmit, onCancel }) => {
+// With canEditDueDate={false} the due date is shown read-only and left out of the payload.
+const CreateTask = ({ task, members = [], categories = [], canEditDueDate = true, onSubmit, onCancel }) => {
   const [form, setForm] = useState(() => toForm(task))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -22,7 +25,7 @@ const CreateTask = ({ task, members = [], categories = [], onSubmit, onCancel })
     setSubmitting(true)
     setError('')
     try {
-      await onSubmit(toPayload(form, isEditing))
+      await onSubmit(toPayload(form, isEditing, canEditDueDate))
     } catch (err) {
       setError(err.message)
       setSubmitting(false)
@@ -35,7 +38,8 @@ const CreateTask = ({ task, members = [], categories = [], onSubmit, onCancel })
         <input value={form.title} onChange={setField('title')} className='field' type='text' placeholder='e.g. Make a UI design' maxLength={120} required autoFocus />
       </label>
       <label className='field-label'>Due date
-        <input value={form.dueDate} onChange={setField('dueDate')} className='field' type='date' required />
+        <input value={form.dueDate} onChange={setField('dueDate')} className='field' type='date' required={canEditDueDate} disabled={!canEditDueDate} />
+        {!canEditDueDate && <span className='field-hint'>Only admins can change the due date.</span>}
       </label>
       <label className='field-label'>Category
         <input value={form.category} onChange={setField('category')} className='field' type='text' placeholder='Design, Dev, Research' list='task-categories' />

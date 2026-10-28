@@ -31,11 +31,10 @@ describe('Feature 3: team members read and update tasks (service)', () => {
     await expect(api.tasks.updateStatus('t-4', 'in_progress')).rejects.toMatchObject({ status: 404 })
   })
 
-  it('never lets a member delete, edit or reassign', async () => {
+  it('never lets a member delete or reassign', async () => {
     const api = createTestApi()
     await api.auth.login(AMIT.email, AMIT.password)
     await expect(api.tasks.remove('t-1')).rejects.toMatchObject({ status: 403 })
-    await expect(api.tasks.update('t-1', { title: 'x' })).rejects.toMatchObject({ status: 403 })
     await expect(api.tasks.assign('t-1', 'u-2')).rejects.toMatchObject({ status: 403 })
     expect((await api.tasks.list()).map((task) => task.id)).toContain('t-1')
   })
@@ -87,7 +86,8 @@ describe('Feature 3: team members read and update tasks (UI)', () => {
     const props = screen.getByRole('region', { name: 'Task properties' })
     expect(within(props).queryByLabelText('Status')).not.toBeInTheDocument()
     expect(within(props).queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Task operations' })).not.toBeInTheDocument()
+    const operations = within(screen.getByRole('region', { name: 'Task operations' }))
+    expect(operations.getAllByRole('button').map((button) => button.textContent.trim())).toEqual(['Edit task'])
 
     await user.click(within(props).getByRole('button', { name: 'Accept task' }))
     expect(await within(props).findByRole('button', { name: 'Mark complete' })).toBeInTheDocument()

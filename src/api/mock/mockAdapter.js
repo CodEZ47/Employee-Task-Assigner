@@ -256,24 +256,33 @@ export const createMockAdapter = ({
         notifyAssigned(task)
         return task
       }),
+    // Admins may edit any field; the assignee may edit everything except the due date.
     update: (id, patch) =>
       respond(() => {
-        const admin = requireAdmin()
+        const user = requireUser()
+        const isAdmin = user.role === ROLES.ADMIN
         const all = loadTasks()
-        const task = ensureNotArchived(findTask(all, id))
+        const task = findTask(all, id)
+        if (!canSee(user, task)) throw new ApiError('Task not found.', 404)
+        ensureNotArchived(task)
         const fields = cleanFields(patch, { partial: true })
         const changed = Object.keys(fields).filter((key) => fields[key] !== task[key])
+        if (!isAdmin && changed.includes('dueDate')) throw new ApiError('Only admins can change the due date.', 403)
         if (changed.length === 0) return task
         const at = now().toISOString()
         const updated = {
           ...task,
           ...fields,
           updatedAt: at,
-          history: [...task.history, { at, by: admin.id, action: 'edited' }],
+          history: [...task.history, { at, by: user.id, action: 'edited' }],
         }
         saveTasks(all.map((item) => (item.id === id ? updated : item)))
-        const details = changed.map((key) => (key === 'dueDate' ? `due date is now ${formatDate(updated.dueDate)}` : `${EDITABLE_FIELD_LABELS[key]} changed`))
-        notifyUpdate(admin, [updated.assigneeId], updated, 'Task updated', `"${updated.title}" was updated: ${details.join(', ')}.`)
+        const details = changed.map((key) => (key === 'dueDate' ? `due date is now ${formatDate(updated.dueDate)}` : `${EDITABLE_FIELD_LABELS[key]} changed`)).join(', ')
+        if (isAdmin) {
+          notifyUpdate(user, [updated.assigneeId], updated, 'Task updated', `"${updated.title}" was updated: ${details}.`)
+        } else {
+          notifyUpdate(user, adminIds(), updated, 'Task updated', `${user.name} updated "${updated.title}": ${details}.`)
+        }
         return updated
       }),
     updateStatus: (id, status) =>

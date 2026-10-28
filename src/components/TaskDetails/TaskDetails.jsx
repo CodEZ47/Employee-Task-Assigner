@@ -113,13 +113,13 @@ const TaskDetails = ({ task, tasks, now, nameOf, isAdmin, members = [], pending,
             </dl>
           </section>
 
-          {isAdmin && (
+          {onEdit && (
             <section className='card side-card' aria-label='Task operations'>
               <p className='side-label'>Task operations</p>
               <button type='button' className='op-button' onClick={() => onEdit(task)} disabled={archived} title={archived ? 'Restore the task to edit it' : undefined} aria-label={`Edit ${task.title}`}><Icon name='edit' size={16} /> Edit task</button>
               {canArchive && <button type='button' className='op-button' onClick={() => onArchive(task)} disabled={pending} aria-label={`Archive ${task.title}`}><Icon name='archive' size={16} /> Archive task</button>}
-              {archived && <button type='button' className='op-button' onClick={() => onUnarchive(task)} disabled={pending} aria-label={`Restore ${task.title}`}><Icon name='restore' size={16} /> Restore from archive</button>}
-              <button type='button' className='op-button danger' onClick={() => onDelete(task)} aria-label={`Delete ${task.title}`}><Icon name='trash' size={16} /> Delete task</button>
+              {isAdmin && archived && <button type='button' className='op-button' onClick={() => onUnarchive(task)} disabled={pending} aria-label={`Restore ${task.title}`}><Icon name='restore' size={16} /> Restore from archive</button>}
+              {isAdmin && <button type='button' className='op-button danger' onClick={() => onDelete(task)} aria-label={`Delete ${task.title}`}><Icon name='trash' size={16} /> Delete task</button>}
             </section>
           )}
         </aside>

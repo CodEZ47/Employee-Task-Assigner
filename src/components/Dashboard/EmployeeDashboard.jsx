@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import AppShell from '../Layout/AppShell'
+import Modal from '../Layout/Modal'
+import CreateTask from '../others/CreateTask'
 import NumberOfTask from '../others/NumberOfTask'
 import BoardPage from '../Board/BoardPage'
 import MemberActions from '../TaskList/MemberActions'
@@ -20,7 +22,7 @@ import { greeting, makeNameOf, matchesSearch } from '../../utils/people'
 const EmployeeDashboard = () => {
   const { user } = useAuth()
   const now = useNow()
-  const { tasks: allTasks, loading, error, refresh, updateTaskStatus } = useTasks({ pollMs: POLL_INTERVAL_MS })
+  const { tasks: allTasks, loading, error, refresh, updateTask, updateTaskStatus } = useTasks({ pollMs: POLL_INTERVAL_MS })
   const tasks = useMemo(() => allTasks.filter((task) => !task.archivedAt), [allTasks])
   const { notifications, toasts, markRead, markAllRead, dismissToast } = useNotifications({ onNew: refresh })
   const [view, setView] = useState('dashboard')
@@ -28,12 +30,19 @@ const EmployeeDashboard = () => {
   const [search, setSearch] = useState('')
   const [pendingTaskId, setPendingTaskId] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [editingTask, setEditingTask] = useState(null)
   const reminder = useDeadlineReminder(user.id, tasks, now)
   const trackerRef = useRef(null)
 
   const nameOf = useMemo(() => makeNameOf([], user), [user])
   const selectedTask = tasks.find((task) => task.id === selectedId) || null
   const open = tasks.filter((task) => task.status !== TASK_STATUS.COMPLETED)
+  const categories = useMemo(() => [...new Set(tasks.map((task) => task.category))].sort(), [tasks])
+
+  const saveTask = async (form) => {
+    await updateTask(editingTask.id, form)
+    setEditingTask(null)
+  }
 
   const changeStatus = async (task, status) => {
     setPendingTaskId(task.id)
@@ -127,9 +136,15 @@ const EmployeeDashboard = () => {
               onOpen={openTask}
               onBack={() => setView('board')}
               onStatusChange={changeStatus}
+              onEdit={setEditingTask}
             />
           )}
         </>
+      )}
+      {editingTask && (
+        <Modal title='Edit task' onClose={() => setEditingTask(null)}>
+          <CreateTask task={editingTask} categories={categories} canEditDueDate={false} onSubmit={saveTask} onCancel={() => setEditingTask(null)} />
+        </Modal>
       )}
       <Toasts toasts={toasts} onDismiss={dismissToast} />
     </AppShell>

@@ -14,7 +14,8 @@ It is built with React and Vite. The backend is not included: the app talks to a
 - Add, edit and remove team members.
 
 **Team members**
-- See only their own tasks; accept, complete, flag or resume them. They cannot create, edit or delete.
+- See only their own tasks; accept, complete, flag or resume them.
+- Edit the title, description and category of their own tasks. Due dates, assignment, archiving and deleting stay with admins.
 - Deadline tracker and a snoozable reminder for overdue or nearly due work.
 
 **Everyone**
@@ -36,7 +37,7 @@ Components ──> hooks (useTasks, useMembers, useNotifications) ──> api �
 **Inputs**
 - Sign-in: email and password.
 - Admins: tasks (`title`, `description`, `category`, `dueDate`, `assigneeId`), assignments, status changes, archive/restore, team members (`name`, `email`).
-- Team members: status changes on their own tasks.
+- Team members: status changes and edits (`title`, `description`, `category`) on their own tasks.
 
 **Outputs**
 - Tasks with `status`, `assigneeId`, `archivedAt` and a `history` of every change.
@@ -64,6 +65,7 @@ Admins can set any status. Reassigning a task resets it to New. Only completed t
 | Open task due today or tomorrow, and again once overdue | The assignee (`deadline`), once per due date |
 | Anyone changes a status | All admins and the assignee (`update`) |
 | Admin edits a task | The assignee (`update`) |
+| Team member edits a task | All admins (`update`) |
 | Admin reassigns or deletes a task | The previous assignee (`update`) |
 
 Nobody is notified about their own action. The deadline check is a scheduled job on the backend; the mock runs it whenever notifications are fetched.
@@ -97,7 +99,7 @@ Implement these in [`src/api/http/httpAdapter.js`](src/api/http/httpAdapter.js) 
 | `tasks.list()` | `GET /tasks` | `Task[]` (incl. archived) | admin: all, member: own |
 | `tasks.get(id)` | `GET /tasks/:id` | `Task` | admin, or assignee |
 | `tasks.create(input)` | `POST /tasks` | `Task` | admin |
-| `tasks.update(id, patch)` | `PATCH /tasks/:id` | `Task` | admin |
+| `tasks.update(id, patch)` | `PATCH /tasks/:id` | `Task` | admin, or assignee (not `dueDate`) |
 | `tasks.updateStatus(id, status)` | `PUT /tasks/:id/status` | `Task` | admin, or assignee within the workflow |
 | `tasks.assign(id, assigneeId)` | `PUT /tasks/:id/assignee` | `Task` | admin (`null` unassigns) |
 | `tasks.archive(id)` / `unarchive(id)` | `POST` / `DELETE /tasks/:id/archive` | `Task` | admin |
@@ -109,7 +111,7 @@ Implement these in [`src/api/http/httpAdapter.js`](src/api/http/httpAdapter.js) 
 | `notifications.list()` | `GET /notifications` | `Notification[]`, newest first | own only |
 | `notifications.markRead(id)` / `markAllRead()` | `POST /notifications/:id/read`, `/read-all` | | own only |
 
-Conflicts (archiving an unfinished task, changing an archived one, duplicate email) return `409`. Removing a member is a soft delete: they can no longer sign in, and their open tasks become unassigned.
+A team member changing `dueDate` gets `403`. Conflicts (archiving an unfinished task, changing an archived one, duplicate email) return `409`. Removing a member is a soft delete: they can no longer sign in, and their open tasks become unassigned.
 
 ## Getting started
 

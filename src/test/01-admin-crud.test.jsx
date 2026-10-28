@@ -31,7 +31,7 @@ describe('Feature 1: admin CRUD tasks (service)', () => {
     await expect(api.tasks.list()).rejects.toMatchObject({ status: 401 })
     await api.auth.login(AMIT.email, AMIT.password)
     await expect(api.tasks.create({ title: 'x', dueDate: '2030-01-10' })).rejects.toMatchObject({ status: 403 })
-    await expect(api.tasks.update('t-1', { title: 'hacked' })).rejects.toMatchObject({ status: 403 })
+    await expect(api.tasks.update('t-4', { title: 'hacked' })).rejects.toMatchObject({ status: 404 }) // not Amit's task
     await expect(api.tasks.remove('t-1')).rejects.toMatchObject({ status: 403 })
   })
 })
