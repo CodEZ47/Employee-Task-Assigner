@@ -1,27 +1,20 @@
 import React from 'react'
+import StatCard from './StatCard'
+import { TASK_STATUS } from '../../api/contract'
 
-const NumberOfTask = ({data}) => {
+const count = (tasks, status) => tasks.filter((task) => task.status === status).length
+
+const NumberOfTask = ({ tasks }) => {
+  const done = count(tasks, TASK_STATUS.COMPLETED)
+  const completion = tasks.length ? Math.round((done / tasks.length) * 100) : 0
   return (
-    <div className=' mt-10 flex justify-between screen gap-5'>
-            <div  className=' py-6 px-9 rounded-xl w-[45%] bg-gradient-to-r from-blue-600 via-green-500 to-red-400 hover:scale-110 transition-all duration-300'>
-                    <h2 className='text-3xl font-semibold text-black'>{data.task_numbers.newTask}</h2>
-                    <h3 className='text-xl font-medium text-black'>New Task</h3>
-            </div>
-
-            <div  className=' py-6 px-9 rounded-xl w-[45%] bg-gradient-to-r from-green-600 via-yellow-500 to-indigo-400 hover:scale-110 transition-all duration-300'>
-                    <h2 className='text-3xl font-semibold text-black'>{data.task_numbers.completed}</h2>
-                    <h3 className='text-xl font-medium text-black'>Completed Task</h3>
-            </div>
-
-            <div  className=' py-6 px-9 rounded-xl w-[45%] bg-gradient-to-r from-red-600 via-purple-500 to-blue-400 hover:scale-110 transition-all duration-300'>
-                    <h2 className='text-3xl font-semibold text-black'>{data.task_numbers.active}</h2>
-                    <h3 className='text-xl font-medium text-black'>Activeted Task</h3>
-            </div>
-
-            <div  className=' py-6 px-9 rounded-xl w-[45%] bg-gradient-to-r from-yellow-600 via-red-500 to-green-400 hover:scale-110 transition-all duration-300'>
-                    <h2 className='text-3xl font-semibold text-black'>{data.task_numbers.failed}</h2>
-                    <h3 className='text-xl font-medium text-black'>Failed Task</h3>
-            </div>
+    <div className='stat-grid'>
+      <StatCard label='New tasks' value={count(tasks, TASK_STATUS.NEW)} icon='plus' tone='primary'><span>Waiting for you to accept</span></StatCard>
+      <StatCard label='In progress' value={count(tasks, TASK_STATUS.IN_PROGRESS)} icon='clock' tone='purple'><span>Currently being worked on</span></StatCard>
+      <StatCard label='Completed' value={done} icon='check' tone='success' note={`${completion}%`}>
+        <div className='progress-track'><div style={{ width: `${completion}%` }} /></div>
+      </StatCard>
+      <StatCard label='Needs attention' value={count(tasks, TASK_STATUS.BLOCKED)} icon='alert' tone='danger'><span>Flagged with an issue</span></StatCard>
     </div>
   )
 }
