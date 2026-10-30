@@ -43,7 +43,7 @@ describe('Feature 4: admin status tracker (UI)', () => {
     expect(screen.getByRole('progressbar', { name: 'Overall completion' })).toHaveAttribute('aria-valuenow', '22')
 
     const amit = within(within(screen.getByRole('region', { name: 'Team workload' })).getByRole('listitem', { name: 'Amit' }))
-    expect(amit.getByText('1 new, 1 in progress, 1 completed, 0 needs attention')).toBeInTheDocument()
+    expect(amit.getByText('1 new, 0 to do, 1 in progress, 1 completed, 0 needs attention')).toBeInTheDocument()
     expect(amit.getByText(/1 overdue/)).toBeInTheDocument()
     expect(amit.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '33')
   })
@@ -59,7 +59,7 @@ describe('Feature 4: admin status tracker (UI)', () => {
     expect(screen.getByRole('heading', { name: 'Research new tech stack' })).toBeInTheDocument()
   })
 
-  it('filters the tracker by pipeline status, assignee and overdue', async () => {
+  it('filters the tracker by pipeline status, assignee and deadline', async () => {
     const { user, tracker } = await openDashboard()
     expect(rowTitles()).toHaveLength(9)
 
@@ -70,9 +70,17 @@ describe('Feature 4: admin status tracker (UI)', () => {
 
     await user.selectOptions(within(tracker).getByLabelText('Assignee'), 'Amit')
     expect(rowTitles().sort()).toEqual(['Develop new feature', 'Research new tech stack', 'Testing module 2'])
-    await user.click(within(tracker).getByLabelText('Overdue only'))
+    await user.selectOptions(within(tracker).getByLabelText('Deadline'), 'Overdue')
     expect(rowTitles()).toEqual(['Research new tech stack'])
     expect(within(tracker).getByText('Overdue by 1 day')).toBeInTheDocument()
+
+    await user.selectOptions(within(tracker).getByLabelText('Assignee'), 'Everyone')
+    await user.selectOptions(within(tracker).getByLabelText('Deadline'), 'Due today')
+    expect(rowTitles()).toEqual(['Fix bug in development'])
+    await user.selectOptions(within(tracker).getByLabelText('Deadline'), 'Due soon')
+    expect(rowTitles()).toEqual(['Develop new feature'])
+    await user.selectOptions(within(tracker).getByLabelText('Deadline'), 'Done')
+    expect(rowTitles().sort()).toEqual(['Final research report', 'Testing module 2'])
 
     await user.selectOptions(within(tracker).getByLabelText('Assignee'), 'Unassigned')
     expect(within(tracker).getByText('No tasks match these filters.')).toBeInTheDocument()
@@ -84,6 +92,7 @@ describe('Feature 4: admin status tracker (UI)', () => {
     // Simulate Amit acting from another device against the same backend.
     const other = createTestApi()
     await other.auth.login(AMIT.email, AMIT.password)
+    await other.tasks.updateStatus('t-1', 'to_do')
     await other.tasks.updateStatus('t-1', 'in_progress')
 
     const pipeline = within(screen.getByRole('region', { name: 'Status tracker' }))

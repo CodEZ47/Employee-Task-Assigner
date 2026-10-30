@@ -8,6 +8,8 @@ describe('Feature 3: team members read and update tasks (service)', () => {
     await api.auth.login(AMIT.email, AMIT.password)
 
     expect(await api.tasks.get('t-1')).toMatchObject({ title: 'Develop new feature', status: 'new' })
+    await expect(api.tasks.updateStatus('t-1', 'in_progress')).rejects.toMatchObject({ status: 403 }) // must pass through To do
+    expect((await api.tasks.updateStatus('t-1', 'to_do')).status).toBe('to_do')
     expect((await api.tasks.updateStatus('t-1', 'in_progress')).status).toBe('in_progress')
     expect((await api.tasks.updateStatus('t-1', 'blocked')).status).toBe('blocked')
     expect((await api.tasks.updateStatus('t-1', 'in_progress')).status).toBe('in_progress')
@@ -59,6 +61,8 @@ describe('Feature 3: team members read and update tasks (UI)', () => {
     const card = () => screen.getByRole('article', { name: 'Develop new feature' })
     expect(column('New').getByRole('article', { name: 'Develop new feature' })).toBeInTheDocument()
     await user.click(within(card()).getByRole('button', { name: 'Accept task' }))
+    expect(await column('To do').findByRole('article', { name: 'Develop new feature' })).toBeInTheDocument()
+    await user.click(within(card()).getByRole('button', { name: 'Start work' }))
     expect(await column('In progress').findByRole('article', { name: 'Develop new feature' })).toBeInTheDocument()
 
     await user.click(within(card()).getByRole('button', { name: 'Mark complete' }))
@@ -90,7 +94,9 @@ describe('Feature 3: team members read and update tasks (UI)', () => {
     expect(operations.getAllByRole('button').map((button) => button.textContent.trim())).toEqual(['Edit task'])
 
     await user.click(within(props).getByRole('button', { name: 'Accept task' }))
+    await user.click(await within(props).findByRole('button', { name: 'Start work' }))
     expect(await within(props).findByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(screen.getByText('Amit moved it to To do')).toBeInTheDocument()
     expect(screen.getByText('Amit moved it to In progress')).toBeInTheDocument()
   })
 })

@@ -22,8 +22,8 @@ import { makeNameOf, matchesSearch } from '../../utils/people'
 const AdminDashboard = () => {
   const { user } = useAuth()
   const now = useNow()
-  const { tasks, loading, error, refresh, createTask, updateTask, assignTask, updateTaskStatus, archiveTask, unarchiveTask, deleteTask } = useTasks({ pollMs: POLL_INTERVAL_MS })
-  const { members, everyone, loading: membersLoading, error: membersError, createMember, updateMember, removeMember } = useMembers()
+  const { tasks, loading, error, refresh, createTask, updateTask, assignTask, updateTaskStatus, archiveTask, unarchiveTask, deleteTask, addComment, deleteComment } = useTasks({ pollMs: POLL_INTERVAL_MS })
+  const { members, everyone, loading: membersLoading, error: membersError, createMember, updateMember, deactivateMember, reactivateMember } = useMembers()
   const { notifications, toasts, markRead, markAllRead, dismissToast } = useNotifications({ onNew: refresh })
   const [view, setView] = useState('dashboard')
   const [selectedId, setSelectedId] = useState(null)
@@ -94,9 +94,9 @@ const AdminDashboard = () => {
     setArchiveNotice(null)
   })
 
-  // Removal also unassigns tasks, so tasks are refetched too.
-  const removeTeamMember = async (id) => {
-    const result = await removeMember(id)
+  // Deactivation also unassigns tasks, so tasks are refetched too.
+  const deactivateTeamMember = async (id) => {
+    const result = await deactivateMember(id)
     await refresh()
     return result
   }
@@ -129,7 +129,7 @@ const AdminDashboard = () => {
         </div>
       )}
       {view === 'team' && (
-        <TeamMembers members={members} tasks={tasks} loading={membersLoading} error={membersError} onCreate={createMember} onUpdate={updateMember} onRemove={removeTeamMember} />
+        <TeamMembers members={everyone} tasks={tasks} loading={membersLoading} error={membersError} onCreate={createMember} onUpdate={updateMember} onDeactivate={deactivateTeamMember} onReactivate={reactivateMember} />
       )}
       {view !== 'team' && (loading ? <p className='muted'>Loading tasks…</p> : (
         <>
@@ -182,6 +182,8 @@ const AdminDashboard = () => {
               onOpen={openTask}
               onBack={() => setView('board')}
               onStatusChange={changeStatus}
+              onAddComment={(task, input) => addComment(task.id, input)}
+              onDeleteComment={(task, commentId) => deleteComment(task.id, commentId)}
               onAssign={reassignTask}
               onEdit={(task) => setModal({ task })}
               onDelete={removeTask}

@@ -1,7 +1,8 @@
 import React from 'react'
 import Avatar from '../Layout/Avatar'
+import DeadlineSelect from '../others/DeadlineSelect'
 
-const BoardFilters = ({ categories, category, onCategory, members, assignee, onAssignee }) => (
+const BoardFilters = ({ categories, category, onCategory, members, assignee, onAssignee, deadline, onDeadline }) => (
   <div className='card filter-bar'>
     {members && (
       <div className='filter-group'>
@@ -31,6 +32,9 @@ const BoardFilters = ({ categories, category, onCategory, members, assignee, onA
           </button>
         ))}
       </div>
+    </div>
+    <div className='filter-group filter-push'>
+      <DeadlineSelect value={deadline} onChange={onDeadline} />
     </div>
   </div>
 )

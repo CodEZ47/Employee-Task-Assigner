@@ -60,7 +60,7 @@ describe('Notifications page', () => {
 
   it('works for admins and hides "View task" when the task is gone', async () => {
     const member = await as(createTestApi(), AMIT)
-    await member.tasks.updateStatus('t-1', 'in_progress')
+    await member.tasks.updateStatus('t-1', 'to_do')
     const admin = await as(createTestApi(), ADMIN)
     await admin.tasks.updateStatus('t-4', 'blocked')
     const priya = await as(createTestApi(), { email: 'employee2@example.com', password: '123' })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../api/ApiContext'
 
-// members: active (assignable). everyone: also removed members, for resolving names.
+// members: active (assignable). everyone: also deactivated members.
 export const useMembers = () => {
   const api = useApi()
   const [everyone, setEveryone] = useState([])
@@ -23,7 +23,7 @@ export const useMembers = () => {
     refresh()
   }, [refresh])
 
-  const members = useMemo(() => everyone.filter((member) => !member.removedAt), [everyone])
+  const members = useMemo(() => everyone.filter((member) => !member.deactivatedAt), [everyone])
 
   const createMember = useCallback(async (input) => {
     const result = await api.users.createMember(input)
@@ -37,11 +37,17 @@ export const useMembers = () => {
     return updated
   }, [api, refresh])
 
-  const removeMember = useCallback(async (id) => {
-    const result = await api.users.removeMember(id)
+  const deactivateMember = useCallback(async (id) => {
+    const result = await api.users.deactivateMember(id)
     await refresh()
     return result
   }, [api, refresh])
 
-  return { members, everyone, loading, error, refresh, createMember, updateMember, removeMember }
+  const reactivateMember = useCallback(async (id) => {
+    const result = await api.users.reactivateMember(id)
+    await refresh()
+    return result
+  }, [api, refresh])
+
+  return { members, everyone, loading, error, refresh, createMember, updateMember, deactivateMember, reactivateMember }
 }

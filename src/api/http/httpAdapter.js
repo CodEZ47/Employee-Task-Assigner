@@ -19,7 +19,8 @@ export const createHttpAdapter = ({ baseUrl } = {}) => {
       listMembers: notImplemented('users.listMembers'),
       createMember: notImplemented('users.createMember'),
       updateMember: notImplemented('users.updateMember'),
-      removeMember: notImplemented('users.removeMember'),
+      deactivateMember: notImplemented('users.deactivateMember'),
+      reactivateMember: notImplemented('users.reactivateMember'),
     },
     tasks: {
       list: notImplemented('tasks.list'),
@@ -30,6 +31,8 @@ export const createHttpAdapter = ({ baseUrl } = {}) => {
       assign: notImplemented('tasks.assign'),
       archive: notImplemented('tasks.archive'),
       unarchive: notImplemented('tasks.unarchive'),
+      addComment: notImplemented('tasks.addComment'),
+      deleteComment: notImplemented('tasks.deleteComment'),
       remove: notImplemented('tasks.remove'),
     },
     notifications: {

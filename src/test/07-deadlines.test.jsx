@@ -86,6 +86,7 @@ describe('Feature 7: deadline tracker and reminder (UI)', () => {
     const card = (name) => screen.getByRole('article', { name })
     await user.click(within(card('Research new tech stack')).getByRole('button', { name: 'Mark complete' }))
     await user.click(within(card('Develop new feature')).getByRole('button', { name: 'Accept task' }))
+    await user.click(await within(card('Develop new feature')).findByRole('button', { name: 'Start work' }))
     await user.click(await within(card('Develop new feature')).findByRole('button', { name: 'Mark complete' }))
     await vi.waitFor(() => expect(column('Completed').getAllByRole('article')).toHaveLength(3))
 

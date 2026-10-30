@@ -7,15 +7,16 @@ It is built with React and Vite. The backend is not included: the app talks to a
 ## Features
 
 **Admins**
-- Create, edit, delete and assign tasks; reassign from the board, list or task details.
+- Create, edit, delete and assign tasks with a title, description, category, priority, deadline and an optional attachment.
 - Dashboard with status tracker, attention queue (overdue, due today, blocked), team workload and live activity.
-- Kanban and list board with search, category and assignee filters.
+- Kanban and list board with search plus category, assignee and deadline filters; the task tracker filters by status, assignee and deadline.
 - Archive completed tasks and restore them later.
-- Add, edit and remove team members.
+- Comment on any task, with an optional file on each comment.
+- Add, edit, deactivate and reactivate team members, and filter them by name, status, open tasks and completed tasks.
 
 **Team members**
-- See only their own tasks; accept, complete, flag or resume them.
-- Edit the title, description and category of their own tasks. Due dates, assignment, archiving and deleting stay with admins.
+- See only their own tasks and move them New → To do → In progress → Completed (or flag them as needing attention).
+- Edit the title, description and category of their own tasks, comment on them with optional files, and download attachments. Due date, priority, attachment, assignment, archiving and deleting stay with admins.
 - Deadline tracker and a snoozable reminder for overdue or nearly due work.
 
 **Everyone**
@@ -36,11 +37,12 @@ Components ──> hooks (useTasks, useMembers, useNotifications) ──> api �
 
 **Inputs**
 - Sign-in: email and password.
-- Admins: tasks (`title`, `description`, `category`, `dueDate`, `assigneeId`), assignments, status changes, archive/restore, team members (`name`, `email`).
-- Team members: status changes and edits (`title`, `description`, `category`) on their own tasks.
+- Admins: tasks (`title`, `description`, `category`, `priority`, `dueDate`, `assigneeId`, optional `attachment` file), assignments, status changes, archive/restore, team members (`name`, `email`).
+- Team members: status changes, edits (`title`, `description`, `category`) and comments on their own tasks.
+- Comments: `body` and an optional `attachment` file, from anyone who can see the task.
 
 **Outputs**
-- Tasks with `status`, `assigneeId`, `archivedAt` and a `history` of every change.
+- Tasks with `status`, `priority`, `assigneeId`, `attachment` (`{ name, type, size, url }`), `comments`, `archivedAt` and a `history` of every change.
 - Notifications of type `assignment`, `deadline` or `update`.
 - A one-time temporary password when a team member is added (the backend may send an invite instead).
 
@@ -50,7 +52,8 @@ All shapes are defined in [`src/api/contract.js`](src/api/contract.js).
 
 | Status | Team member can move it to |
 |---|---|
-| New | In progress |
+| New | To do |
+| To do | In progress |
 | In progress | Completed, Needs attention |
 | Needs attention | In progress |
 | Completed | (nothing) |
@@ -66,6 +69,8 @@ Admins can set any status. Reassigning a task resets it to New. Only completed t
 | Anyone changes a status | All admins and the assignee (`update`) |
 | Admin edits a task | The assignee (`update`) |
 | Team member edits a task | All admins (`update`) |
+| Admin comments on a task | The assignee (`comment`) |
+| Team member comments on a task | All admins (`comment`) |
 | Admin reassigns or deletes a task | The previous assignee (`update`) |
 
 Nobody is notified about their own action. The deadline check is a scheduled job on the backend; the mock runs it whenever notifications are fetched.
@@ -99,19 +104,22 @@ Implement these in [`src/api/http/httpAdapter.js`](src/api/http/httpAdapter.js) 
 | `tasks.list()` | `GET /tasks` | `Task[]` (incl. archived) | admin: all, member: own |
 | `tasks.get(id)` | `GET /tasks/:id` | `Task` | admin, or assignee |
 | `tasks.create(input)` | `POST /tasks` | `Task` | admin |
-| `tasks.update(id, patch)` | `PATCH /tasks/:id` | `Task` | admin, or assignee (not `dueDate`) |
+| `tasks.update(id, patch)` | `PATCH /tasks/:id` | `Task` | admin, or assignee (not `dueDate`, `priority`, `attachment`) |
 | `tasks.updateStatus(id, status)` | `PUT /tasks/:id/status` | `Task` | admin, or assignee within the workflow |
 | `tasks.assign(id, assigneeId)` | `PUT /tasks/:id/assignee` | `Task` | admin (`null` unassigns) |
 | `tasks.archive(id)` / `unarchive(id)` | `POST` / `DELETE /tasks/:id/archive` | `Task` | admin |
+| `tasks.addComment(id, { body, attachment })` | `POST /tasks/:id/comments` | `Task` | admin, or assignee |
+| `tasks.deleteComment(id, commentId)` | `DELETE /tasks/:id/comments/:commentId` | `Task` | the author, or admin |
 | `tasks.remove(id)` | `DELETE /tasks/:id` | `{ id }` | admin |
-| `users.listMembers()` | `GET /users?role=member` | `User[]` (incl. removed) | admin |
+| `users.listMembers()` | `GET /users?role=member` | `User[]` (incl. deactivated) | admin |
 | `users.createMember({ name, email })` | `POST /users` | `{ user, temporaryPassword? }` | admin |
 | `users.updateMember(id, { name, email })` | `PATCH /users/:id` | `User` | admin |
-| `users.removeMember(id)` | `DELETE /users/:id` | `{ id, unassignedTasks }` | admin |
+| `users.deactivateMember(id)` | `POST /users/:id/deactivate` | `{ id, unassignedTasks }` | admin |
+| `users.reactivateMember(id)` | `POST /users/:id/reactivate` | `User` | admin |
 | `notifications.list()` | `GET /notifications` | `Notification[]`, newest first | own only |
 | `notifications.markRead(id)` / `markAllRead()` | `POST /notifications/:id/read`, `/read-all` | | own only |
 
-A team member changing `dueDate` gets `403`. Conflicts (archiving an unfinished task, changing an archived one, duplicate email) return `409`. Removing a member is a soft delete: they can no longer sign in, and their open tasks become unassigned.
+`tasks.create` and `tasks.update` take `attachment` as a browser `File` (`null` removes it); the backend stores the file and returns its `url`. Files over the size limit return `413`. A team member changing an admin-only field gets `403`. Conflicts (archiving an unfinished task, changing an archived one, duplicate email) return `409`. Deactivating a member blocks sign-in and assignment and unassigns their open tasks; their email stays reserved so they can be reactivated. Comments can't be added to archived tasks.
 
 ## Getting started
 
@@ -142,6 +150,7 @@ In mock mode, sign in as the admin with `VITE_ADMIN_EMAIL` / `VITE_ADMIN_PASSWOR
 | `VITE_REMINDER_SNOOZE_MS` | How long "Remind me later" hides the deadline reminder (default 4 hours) |
 | `VITE_ADMIN_EMAIL`, `VITE_ADMIN_PASSWORD` | Mock admin sign-in |
 | `VITE_DEMO_MEMBER_PASSWORD` | Mock team member sign-in |
+| `VITE_MAX_ATTACHMENT_MB` | Largest attachment accepted, in MB (default 1, sized for the mock's browser storage) |
 | `VITE_MOCK_LATENCY_MS` | Simulated network delay in the mock |
 | `VITE_ALLOW_MOCK_IN_PRODUCTION` | Allow a production build to run on the mock (default `false`) |
 

@@ -1,11 +1,11 @@
 import { TASK_STATUS_LABELS } from '../api/contract'
 
-// Returns id -> display name. Unknown ids are shown as "Admin"; removed members get "(removed)".
+// Returns id -> display name. Unknown ids are shown as "Admin"; deactivated members get "(deactivated)".
 export const makeNameOf = (people, currentUser) => (id) => {
   if (id === currentUser?.id) return currentUser.name
   const person = people.find((item) => item.id === id)
   if (!person) return 'Admin'
-  return person.removedAt ? `${person.name} (removed)` : person.name
+  return person.deactivatedAt ? `${person.name} (deactivated)` : person.name
 }
 
 export const describeEntry = (entry, nameOf) => {

@@ -15,6 +15,7 @@ const updates = async (api) => (await api.notifications.list()).filter((item) =>
 describe('Feature 6: update notifications (service)', () => {
   it('notifies admins when a member changes a status, but not the member', async () => {
     const api = await as(createTestApi(), AMIT)
+    await api.tasks.updateStatus('t-1', 'to_do')
     await api.tasks.updateStatus('t-1', 'in_progress')
     await api.tasks.updateStatus('t-1', 'completed')
     expect(await updates(api)).toEqual([])
@@ -23,6 +24,7 @@ describe('Feature 6: update notifications (service)', () => {
     expect((await updates(api)).map((item) => item.message)).toEqual([
       'Amit moved "Develop new feature" to Completed.',
       'Amit moved "Develop new feature" to In progress.',
+      'Amit moved "Develop new feature" to To do.',
     ])
   })
 

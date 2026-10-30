@@ -55,6 +55,8 @@ export const useTasks = ({ pollMs = 0 } = {}) => {
     updateTaskStatus: mutate(api.tasks.updateStatus),
     archiveTask: mutate(api.tasks.archive),
     unarchiveTask: mutate(api.tasks.unarchive),
+    addComment: mutate(api.tasks.addComment),
+    deleteComment: mutate(api.tasks.deleteComment),
     deleteTask: mutate(api.tasks.remove),
   }
 }

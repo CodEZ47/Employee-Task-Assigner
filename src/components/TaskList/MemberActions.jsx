@@ -2,7 +2,8 @@ import React from 'react'
 import { MEMBER_STATUS_TRANSITIONS, TASK_STATUS } from '../../api/contract'
 
 const ACTIONS = {
-  [TASK_STATUS.IN_PROGRESS]: { label: 'Accept task', className: 'btn-primary' },
+  [TASK_STATUS.TO_DO]: { label: 'Accept task', className: 'btn-primary' },
+  [TASK_STATUS.IN_PROGRESS]: { label: 'Start work', className: 'btn-primary' },
   [TASK_STATUS.COMPLETED]: { label: 'Mark complete', className: 'btn-success' },
   [TASK_STATUS.BLOCKED]: { label: 'Flag issue', className: 'btn-danger-soft' },
 }

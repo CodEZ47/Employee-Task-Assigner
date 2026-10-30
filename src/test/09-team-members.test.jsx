@@ -43,11 +43,11 @@ describe('Team members (service)', () => {
     await expect(api.auth.login('amit@example.com', AMIT.password)).resolves.toMatchObject({ user: { name: 'Amit Shah' } })
   })
 
-  it('removes a member: blocks access, unassigns open tasks, keeps completed history', async () => {
+  it('deactivates a member: blocks access, unassigns open tasks, keeps completed history', async () => {
     const api = await asAdmin()
     const amit = await as(createTestApi(), AMIT.email, AMIT.password)
 
-    expect(await api.users.removeMember('u-1')).toEqual({ id: 'u-1', unassignedTasks: 2 })
+    expect(await api.users.deactivateMember('u-1')).toEqual({ id: 'u-1', unassignedTasks: 2 })
 
     const tasks = await api.tasks.list()
     const byId = (id) => tasks.find((task) => task.id === id)
@@ -56,14 +56,14 @@ describe('Team members (service)', () => {
     expect(byId('t-3').history.at(-1)).toMatchObject({ action: 'assigned', assigneeId: null, by: 'u-admin' })
     expect(byId('t-2')).toMatchObject({ assigneeId: 'u-1', status: 'completed' })
 
-    expect((await api.users.listMembers()).find((member) => member.id === 'u-1').removedAt).toEqual(expect.any(String))
+    expect((await api.users.listMembers()).find((member) => member.id === 'u-1').deactivatedAt).toEqual(expect.any(String))
     await expect(amit.tasks.list()).rejects.toMatchObject({ status: 401 })
     await expect(api.auth.login(AMIT.email, AMIT.password)).rejects.toMatchObject({ status: 401 })
     await expect(api.tasks.assign('t-9', 'u-1')).rejects.toThrow(/team members/i)
-    await expect(api.users.removeMember('u-1')).rejects.toMatchObject({ status: 404 })
+    await expect(api.users.deactivateMember('u-1')).rejects.toMatchObject({ status: 404 })
 
-    // The email is free again for a new account.
-    await expect(api.users.createMember({ name: 'New Amit', email: AMIT.email })).resolves.toBeTruthy()
+    // The email stays reserved so the account can be reactivated.
+    await expect(api.users.createMember({ name: 'New Amit', email: AMIT.email })).rejects.toMatchObject({ status: 409 })
   })
 
   it('is admin-only', async () => {
@@ -71,7 +71,8 @@ describe('Team members (service)', () => {
     await expect(api.users.listMembers()).rejects.toMatchObject({ status: 403 })
     await expect(api.users.createMember({ name: 'Friend', email: 'friend@example.com' })).rejects.toMatchObject({ status: 403 })
     await expect(api.users.updateMember('u-2', { name: 'Hacked' })).rejects.toMatchObject({ status: 403 })
-    await expect(api.users.removeMember('u-2')).rejects.toMatchObject({ status: 403 })
+    await expect(api.users.deactivateMember('u-2')).rejects.toMatchObject({ status: 403 })
+    await expect(api.users.reactivateMember('u-2')).rejects.toMatchObject({ status: 403 })
   })
 })
 
@@ -125,21 +126,21 @@ describe('Team members (UI)', () => {
     expect(await table().findByText('Priya Patel', { selector: 'strong' })).toBeInTheDocument()
   })
 
-  it('removes a member after confirming, unassigning their open work', async () => {
+  it('deactivates a member after confirming, unassigning their open work', async () => {
     const user = await openTeam()
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
 
-    await user.click(table().getByRole('button', { name: 'Remove Amit' }))
+    await user.click(table().getByRole('button', { name: 'Deactivate Amit' }))
     expect(confirm.mock.calls[0][0]).toContain('Their 2 open tasks will be unassigned.')
     expect(rowOf('Amit')).toBeInTheDocument()
 
-    await user.click(table().getByRole('button', { name: 'Remove Amit' }))
-    expect(await screen.findByText('Amit was removed. 2 open tasks are now unassigned.')).toBeInTheDocument()
+    await user.click(table().getByRole('button', { name: 'Deactivate Amit' }))
+    expect(await screen.findByText('Amit was deactivated. 2 open tasks are now unassigned.')).toBeInTheDocument()
     expect(table().queryByText('Amit', { selector: 'strong' })).not.toBeInTheDocument()
 
     await goTo(user, 'Task board')
     expect(within(screen.getByRole('article', { name: 'Develop new feature' })).getByText('Unassigned')).toBeInTheDocument()
-    expect(within(screen.getByRole('article', { name: 'Testing module 2' })).getByText('Amit (removed)')).toBeInTheDocument()
+    expect(within(screen.getByRole('article', { name: 'Testing module 2' })).getByText('Amit (deactivated)')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Only Amit' })).not.toBeInTheDocument()
   })
 

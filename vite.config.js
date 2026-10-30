@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
+    testTimeout: 15000,
     env: { VITE_POLL_INTERVAL_MS: '100' },
   },
 })

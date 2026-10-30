@@ -3,7 +3,7 @@ import TaskCard from '../TaskList/TaskCard'
 import Icon from '../Layout/Icon'
 import { TASK_STATUS, TASK_STATUS_LABELS } from '../../api/contract'
 
-const COLUMNS = [TASK_STATUS.NEW, TASK_STATUS.IN_PROGRESS, TASK_STATUS.BLOCKED, TASK_STATUS.COMPLETED]
+const COLUMNS = [TASK_STATUS.NEW, TASK_STATUS.TO_DO, TASK_STATUS.IN_PROGRESS, TASK_STATUS.BLOCKED, TASK_STATUS.COMPLETED]
 
 const TaskBoard = ({ tasks, now, nameOf, showAssignee, onOpen, onAdd, renderActions }) => (
   <div className='kanban'>

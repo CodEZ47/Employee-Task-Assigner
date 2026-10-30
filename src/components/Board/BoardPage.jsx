@@ -6,11 +6,13 @@ import Icon from '../Layout/Icon'
 import { TASK_STATUS } from '../../api/contract'
 import { formatDateTime } from '../../utils/dates'
 import { DEADLINE_STATE, getDeadlineState } from '../../utils/deadlines'
+import { ANY_DEADLINE } from '../others/DeadlineSelect'
 
 // `archived` enables the archive view; render* props add per-card or list controls.
 const BoardPage = ({ tasks, archived, now, nameOf, members, isAdmin, onOpen, onAdd, renderActions, renderArchivedActions, renderList }) => {
   const [category, setCategory] = useState(null)
   const [assignee, setAssignee] = useState(null)
+  const [deadline, setDeadline] = useState(ANY_DEADLINE)
   const [mode, setMode] = useState('kanban')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -19,6 +21,7 @@ const BoardPage = ({ tasks, archived, now, nameOf, members, isAdmin, onOpen, onA
   const visible = source
     .filter((task) => !category || task.category === category)
     .filter((task) => !assignee || task.assigneeId === assignee)
+    .filter((task) => deadline === ANY_DEADLINE || getDeadlineState(task, now) === deadline)
   const open = visible.filter((task) => task.status !== TASK_STATUS.COMPLETED).length
   const overdue = visible.filter((task) => getDeadlineState(task, now) === DEADLINE_STATE.OVERDUE).length
 
@@ -65,6 +68,8 @@ const BoardPage = ({ tasks, archived, now, nameOf, members, isAdmin, onOpen, onA
         members={isAdmin ? members : null}
         assignee={assignee}
         onAssignee={setAssignee}
+        deadline={deadline}
+        onDeadline={setDeadline}
       />
 
       {showArchived ? (

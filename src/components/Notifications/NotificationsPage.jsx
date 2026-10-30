@@ -9,6 +9,7 @@ const TYPE_FILTERS = [
   { id: NOTIFICATION_TYPE.ASSIGNMENT, label: 'Assignments' },
   { id: NOTIFICATION_TYPE.DEADLINE, label: 'Deadlines' },
   { id: NOTIFICATION_TYPE.UPDATE, label: 'Updates' },
+  { id: NOTIFICATION_TYPE.COMMENT, label: 'Comments' },
 ]
 
 const groupLabel = (iso, now) => {

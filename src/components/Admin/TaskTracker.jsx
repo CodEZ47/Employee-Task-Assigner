@@ -3,6 +3,7 @@ import Avatar from '../Layout/Avatar'
 import { TASK_STATUS, TASK_STATUS_LABELS } from '../../api/contract'
 import { formatDate, formatDateTime } from '../../utils/dates'
 import { DEADLINE_STATE, describeDue, getDeadlineState } from '../../utils/deadlines'
+import DeadlineSelect, { ANY_DEADLINE } from '../others/DeadlineSelect'
 import { describeEntry } from '../../utils/people'
 
 const ALL = 'all'
@@ -11,13 +12,13 @@ const UNASSIGNED = 'unassigned'
 // statusFilter/onStatusFilter come from the parent so the status pipeline can set them.
 const TaskTracker = ({ tasks, members, nameOf, now, statusFilter, onStatusFilter, onOpen }) => {
   const [assigneeFilter, setAssigneeFilter] = useState(ALL)
-  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [deadlineFilter, setDeadlineFilter] = useState(ANY_DEADLINE)
   const isOverdue = (task) => getDeadlineState(task, now) === DEADLINE_STATE.OVERDUE
 
   const visible = tasks
     .filter((task) => statusFilter === ALL || task.status === statusFilter)
     .filter((task) => assigneeFilter === ALL || (assigneeFilter === UNASSIGNED ? !task.assigneeId : task.assigneeId === assigneeFilter))
-    .filter((task) => !overdueOnly || isOverdue(task))
+    .filter((task) => deadlineFilter === ANY_DEADLINE || getDeadlineState(task, now) === deadlineFilter)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
@@ -38,7 +39,7 @@ const TaskTracker = ({ tasks, members, nameOf, now, statusFilter, onStatusFilter
               {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </select>
           </label>
-          <label className='checkbox-label'><input type='checkbox' checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} /> Overdue only</label>
+          <DeadlineSelect value={deadlineFilter} onChange={setDeadlineFilter} />
         </div>
       </div>
 

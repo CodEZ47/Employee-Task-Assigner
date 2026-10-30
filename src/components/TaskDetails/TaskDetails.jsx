@@ -2,8 +2,11 @@ import React from 'react'
 import Avatar from '../Layout/Avatar'
 import Icon from '../Layout/Icon'
 import MemberActions from '../TaskList/MemberActions'
+import Comments from './Comments'
+import PriorityBadge from '../TaskList/PriorityBadge'
 import { TASK_STATUS, TASK_STATUS_LABELS } from '../../api/contract'
 import { formatDate, formatDateTime } from '../../utils/dates'
+import { formatBytes } from '../../utils/files'
 import { DEADLINE_STATE, describeDue, getDeadlineState } from '../../utils/deadlines'
 import { describeEntry } from '../../utils/people'
 
@@ -28,7 +31,7 @@ const EmptyDetails = ({ tasks, onOpen, onBack }) => (
   </>
 )
 
-const TaskDetails = ({ task, tasks, now, nameOf, isAdmin, members = [], pending, onOpen, onBack, onStatusChange, onAssign, onEdit, onDelete, onArchive, onUnarchive }) => {
+const TaskDetails = ({ task, tasks, now, nameOf, isAdmin, members = [], pending, onOpen, onBack, onStatusChange, onAssign, onEdit, onDelete, onArchive, onUnarchive, onAddComment, onDeleteComment }) => {
   if (!task) return <EmptyDetails tasks={tasks} onOpen={onOpen} onBack={onBack} />
 
   const deadline = getDeadlineState(task, now)
@@ -62,6 +65,26 @@ const TaskDetails = ({ task, tasks, now, nameOf, isAdmin, members = [], pending,
 
           <h2 className='details-section'>Description</h2>
           <p className='details-body'>{task.description || <span className='muted'>No description provided.</span>}</p>
+
+          {task.attachment && (
+            <>
+              <h2 className='details-section'>Attachment</h2>
+              <a className='attachment-card' href={task.attachment.url} download={task.attachment.name} aria-label={`Download ${task.attachment.name}`}>
+                <span className='attachment-icon'><Icon name='paperclip' size={18} /></span>
+                <span className='attachment-meta'><strong>{task.attachment.name}</strong><span>{formatBytes(task.attachment.size)}</span></span>
+                <Icon name='download' size={18} />
+              </a>
+            </>
+          )}
+
+          <Comments
+            task={task}
+            nameOf={nameOf}
+            isAdmin={isAdmin}
+            readOnly={archived}
+            onAdd={(input) => onAddComment(task, input)}
+            onDelete={(commentId) => onDeleteComment(task, commentId)}
+          />
 
           <h2 className='details-section'>Activity <span className='count'>{history.length}</span></h2>
           <ol className='timeline'>
@@ -104,6 +127,7 @@ const TaskDetails = ({ task, tasks, now, nameOf, isAdmin, members = [], pending,
 
             <div className='side-divider' />
             <dl className='side-facts'>
+              <div><dt><Icon name='flag' size={16} /> Priority</dt><dd><PriorityBadge priority={task.priority} /></dd></div>
               <div><dt><Icon name='user' size={16} /> Reporter</dt><dd>{nameOf(task.createdBy)}</dd></div>
               <div>
                 <dt><Icon name='calendar' size={16} /> Due date</dt>

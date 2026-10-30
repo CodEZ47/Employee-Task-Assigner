@@ -50,7 +50,8 @@ describe('Team members editing tasks (UI)', () => {
 
     const form = screen.getByRole('form', { name: 'Edit task' })
     expect(within(form).getByLabelText(/due date/i)).toBeDisabled()
-    expect(within(form).getByText('Only admins can change the due date.')).toBeInTheDocument()
+    expect(within(form).getByLabelText(/priority/i)).toBeDisabled()
+    expect(within(form).getByText('Only admins can change the due date and priority.')).toBeInTheDocument()
     expect(within(form).queryByLabelText(/assign to/i)).not.toBeInTheDocument()
 
     const description = within(form).getByLabelText(/description/i)

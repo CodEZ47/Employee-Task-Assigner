@@ -1,5 +1,6 @@
-import { ApiError, MEMBER_STATUS_TRANSITIONS, NOTIFICATION_TYPE, ROLES, TASK_STATUS, TASK_STATUS_LABELS } from '../contract'
+import { ApiError, MEMBER_STATUS_TRANSITIONS, NOTIFICATION_TYPE, ROLES, TASK_PRIORITY, TASK_PRIORITY_LABELS, TASK_STATUS, TASK_STATUS_LABELS } from '../contract'
 import { formatDate, isValidDateInput } from '../../utils/dates'
+import { MAX_ATTACHMENT_BYTES, formatBytes, readAsDataUrl } from '../../utils/files'
 import { daysUntilDue } from '../../utils/deadlines'
 import { SEED_ADMIN_ID, createSeedTasks, createSeedUsers } from './seed'
 import { DEFAULT_ITERATIONS, hashPassword, verifyPassword } from './passwords'
@@ -50,6 +51,7 @@ export const createMockAdapter = ({
 
   LEGACY_KEYS.forEach((key) => storage.removeItem(key))
   if (!storage.getItem(KEYS.tasks)) write(KEYS.tasks, createSeedTasks(now()))
+  write(KEYS.tasks, read(KEYS.tasks, []).map((task) => ({ ...task, priority: task.priority || TASK_PRIORITY.MEDIUM, comments: task.comments || [] })))
 
   // Seeds users, hashes the env credentials and migrates legacy plaintext passwords.
   // Every API call waits for it (see `respond`).
@@ -70,15 +72,16 @@ export const createMockAdapter = ({
         changes[user.id] = { credential: await hashPassword(adminCredentials.password, passwordIterations) }
       }
     }))
-    write(KEYS.users, read(KEYS.users, []).map(({ password: _password, ...user }) => ({
+    write(KEYS.users, read(KEYS.users, []).map(({ password: _password, removedAt, ...user }) => ({
       ...user,
+      ...(removedAt && !user.deactivatedAt && { deactivatedAt: removedAt }),
       ...changes[user.id],
       ...(user.id === SEED_ADMIN_ID && { email: adminCredentials.email }),
     })))
   })()
 
   const loadUsers = () => read(KEYS.users, [])
-  const isActive = (user) => !user.removedAt
+  const isActive = (user) => !user.deactivatedAt
   const saveUsers = (users) => write(KEYS.users, users)
 
   const respond = (fn) =>
@@ -114,7 +117,13 @@ export const createMockAdapter = ({
   }
 
   const loadTasks = () => read(KEYS.tasks, [])
-  const saveTasks = (tasks) => write(KEYS.tasks, tasks)
+  const saveTasks = (tasks) => {
+    try {
+      write(KEYS.tasks, tasks)
+    } catch {
+      throw new ApiError('Not enough browser storage to save this. Try a smaller attachment.', 413)
+    }
+  }
 
   const loadNotifications = () => read(KEYS.notifications, [])
 
@@ -146,7 +155,15 @@ export const createMockAdapter = ({
 
   const adminIds = () => loadUsers().filter((user) => user.role === ROLES.ADMIN).map((user) => user.id)
 
-  const EDITABLE_FIELD_LABELS = { title: 'title', description: 'description', category: 'category', dueDate: 'due date' }
+  const EDITABLE_FIELD_LABELS = { title: 'title', description: 'description', category: 'category', dueDate: 'due date', priority: 'priority', attachment: 'attachment' }
+  const ADMIN_ONLY_FIELDS = ['dueDate', 'priority', 'attachment']
+
+  const describeChange = (key, task) => {
+    if (key === 'dueDate') return `due date is now ${formatDate(task.dueDate)}`
+    if (key === 'priority') return `priority is now ${TASK_PRIORITY_LABELS[task.priority]}`
+    if (key === 'attachment') return task.attachment ? `attachment ${task.attachment.name} added` : 'attachment removed'
+    return `${EDITABLE_FIELD_LABELS[key]} changed`
+  }
 
   // Runs on every notifications.list(). For each open, assigned task it sends one 'due_soon'
   // (due today/tomorrow) and one 'overdue' reminder per assignee and due date.
@@ -187,6 +204,14 @@ export const createMockAdapter = ({
     return member.id
   }
 
+  // File -> Attachment (stored as a data URL), null -> null.
+  const cleanAttachment = async (file) => {
+    if (!file) return null
+    if (typeof file.size !== 'number' || !file.name) throw new ApiError('Attachment must be a file.')
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new ApiError(`Attachments must be ${formatBytes(MAX_ATTACHMENT_BYTES)} or smaller.`, 413)
+    return { name: file.name, type: file.type || 'application/octet-stream', size: file.size, url: await readAsDataUrl(file) }
+  }
+
   const cleanFields = (input, { partial }) => {
     const fields = {}
     if (!partial || 'title' in input) {
@@ -200,6 +225,11 @@ export const createMockAdapter = ({
     if (!partial || 'dueDate' in input) {
       if (!isValidDateInput(input.dueDate)) throw new ApiError('A valid due date is required.')
       fields.dueDate = input.dueDate
+    }
+    if (!partial || 'priority' in input) {
+      const priority = input.priority ?? TASK_PRIORITY.MEDIUM
+      if (!Object.values(TASK_PRIORITY).includes(priority)) throw new ApiError('Unknown priority.')
+      fields.priority = priority
     }
     return fields
   }
@@ -238,13 +268,16 @@ export const createMockAdapter = ({
         return task
       }),
     create: (input) =>
-      respond(() => {
+      respond(async () => {
         const admin = requireAdmin()
+        const attachment = await cleanAttachment(input.attachment)
         const at = now().toISOString()
         const assigneeId = cleanAssignee(input.assigneeId)
         const task = {
           id: `t-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
           ...cleanFields(input, { partial: false }),
+          attachment,
+          comments: [],
           assigneeId,
           status: TASK_STATUS.NEW,
           createdBy: admin.id,
@@ -256,18 +289,25 @@ export const createMockAdapter = ({
         notifyAssigned(task)
         return task
       }),
-    // Admins may edit any field; the assignee may edit everything except the due date.
+    // Admins may edit any field; the assignee may not change ADMIN_ONLY_FIELDS.
     update: (id, patch) =>
-      respond(() => {
+      respond(async () => {
         const user = requireUser()
         const isAdmin = user.role === ROLES.ADMIN
+        // Read the file before loading tasks, so the read-modify-write below has no await in it.
+        const attachment = 'attachment' in patch ? await cleanAttachment(patch.attachment) : undefined
         const all = loadTasks()
         const task = findTask(all, id)
         if (!canSee(user, task)) throw new ApiError('Task not found.', 404)
         ensureNotArchived(task)
         const fields = cleanFields(patch, { partial: true })
         const changed = Object.keys(fields).filter((key) => fields[key] !== task[key])
-        if (!isAdmin && changed.includes('dueDate')) throw new ApiError('Only admins can change the due date.', 403)
+        if (attachment !== undefined && (attachment || task.attachment)) {
+          fields.attachment = attachment
+          changed.push('attachment')
+        }
+        const forbidden = isAdmin ? undefined : changed.find((key) => ADMIN_ONLY_FIELDS.includes(key))
+        if (forbidden) throw new ApiError(`Only admins can change the ${EDITABLE_FIELD_LABELS[forbidden]}.`, 403)
         if (changed.length === 0) return task
         const at = now().toISOString()
         const updated = {
@@ -277,7 +317,7 @@ export const createMockAdapter = ({
           history: [...task.history, { at, by: user.id, action: 'edited' }],
         }
         saveTasks(all.map((item) => (item.id === id ? updated : item)))
-        const details = changed.map((key) => (key === 'dueDate' ? `due date is now ${formatDate(updated.dueDate)}` : `${EDITABLE_FIELD_LABELS[key]} changed`)).join(', ')
+        const details = changed.map((key) => describeChange(key, updated)).join(', ')
         if (isAdmin) {
           notifyUpdate(user, [updated.assigneeId], updated, 'Task updated', `"${updated.title}" was updated: ${details}.`)
         } else {
@@ -352,6 +392,48 @@ export const createMockAdapter = ({
         saveTasks(all.map((item) => (item.id === id ? updated : item)))
         return updated
       }),
+    // Admins comment on any task, members on their own. Needs a body or an attachment.
+    addComment: (id, input = {}) =>
+      respond(async () => {
+        const user = requireUser()
+        const body = String(input.body ?? '').trim()
+        if (body.length > 2000) throw new ApiError('Comments must be 2000 characters or fewer.')
+        const attachment = await cleanAttachment(input.attachment)
+        if (!body && !attachment) throw new ApiError('Write a comment or attach a file.')
+        const all = loadTasks()
+        const task = findTask(all, id)
+        if (!canSee(user, task)) throw new ApiError('Task not found.', 404)
+        ensureNotArchived(task)
+        const comment = {
+          id: `c-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          authorId: user.id,
+          body,
+          attachment,
+          createdAt: now().toISOString(),
+        }
+        const updated = { ...task, comments: [...(task.comments || []), comment] }
+        saveTasks(all.map((item) => (item.id === id ? updated : item)))
+        const recipients = user.role === ROLES.ADMIN ? [updated.assigneeId] : adminIds()
+        const summary = body ? `: "${body.length > 80 ? `${body.slice(0, 77)}...` : body}"` : ` and attached ${attachment.name}`
+        recipients
+          .filter((recipientId) => recipientId && recipientId !== user.id)
+          .forEach((recipientId) => notify(recipientId, NOTIFICATION_TYPE.COMMENT, updated, 'New comment', `${user.name} commented on "${updated.title}"${summary}`))
+        return updated
+      }),
+    // The author or an admin may delete a comment.
+    deleteComment: (id, commentId) =>
+      respond(() => {
+        const user = requireUser()
+        const all = loadTasks()
+        const task = findTask(all, id)
+        if (!canSee(user, task)) throw new ApiError('Task not found.', 404)
+        const comment = (task.comments || []).find((item) => item.id === commentId)
+        if (!comment) throw new ApiError('Comment not found.', 404)
+        if (comment.authorId !== user.id && user.role !== ROLES.ADMIN) throw new ApiError('You can only delete your own comments.', 403)
+        const updated = { ...task, comments: task.comments.filter((item) => item.id !== commentId) }
+        saveTasks(all.map((item) => (item.id === id ? updated : item)))
+        return updated
+      }),
     remove: (id) =>
       respond(() => {
         const admin = requireAdmin()
@@ -371,14 +453,14 @@ export const createMockAdapter = ({
     if (!name) throw new ApiError('Name is required.')
     if (name.length > 80) throw new ApiError('Name must be 80 characters or fewer.')
     if (!EMAIL_PATTERN.test(email)) throw new ApiError('A valid email address is required.')
-    if (loadUsers().some((user) => isActive(user) && user.id !== excludeId && user.email === email)) {
+    if (loadUsers().some((user) => user.id !== excludeId && user.email === email)) {
       throw new ApiError('Another account already uses that email.', 409)
     }
     return { name, email }
   }
 
-  const findMember = (id) => {
-    const member = loadUsers().find((user) => user.id === id && user.role === ROLES.MEMBER && isActive(user))
+  const findMember = (id, { includeDeactivated = false } = {}) => {
+    const member = loadUsers().find((user) => user.id === id && user.role === ROLES.MEMBER && (includeDeactivated || isActive(user)))
     if (!member) throw new ApiError('Team member not found.', 404)
     return member
   }
@@ -387,7 +469,7 @@ export const createMockAdapter = ({
     Array.from(crypto.getRandomValues(new Uint32Array(12)), (n) => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'[n % 56]).join('')
 
   const usersApi = {
-    // Includes removed members (with removedAt) so names in task history still resolve.
+    // Includes deactivated members (with deactivatedAt).
     listMembers: () =>
       respond(() => {
         requireAdmin()
@@ -412,19 +494,19 @@ export const createMockAdapter = ({
     updateMember: (id, patch) =>
       respond(() => {
         requireAdmin()
-        const member = findMember(id)
+        const member = findMember(id, { includeDeactivated: true })
         const updated = { ...member, ...cleanAccountFields({ ...member, ...patch }, id) }
         saveUsers(loadUsers().map((user) => (user.id === id ? updated : user)))
         return publicUser(updated)
       }),
-    // Soft delete: blocks sign-in and assignment, and returns their open tasks to 'new' unassigned.
-    // Resolves to { id, unassignedTasks }.
-    removeMember: (id) =>
+    // Blocks sign-in and assignment, and returns their open tasks to 'new' unassigned.
+    // Resolves to { id, unassignedTasks }. Reversible with reactivateMember.
+    deactivateMember: (id) =>
       respond(() => {
         const admin = requireAdmin()
         const member = findMember(id)
         const at = now().toISOString()
-        saveUsers(loadUsers().map((user) => (user.id === id ? { ...user, removedAt: at } : user)))
+        saveUsers(loadUsers().map((user) => (user.id === id ? { ...user, deactivatedAt: at } : user)))
         let unassigned = 0
         saveTasks(loadTasks().map((task) => {
           if (task.assigneeId !== member.id || task.status === TASK_STATUS.COMPLETED) return task
@@ -438,6 +520,15 @@ export const createMockAdapter = ({
           }
         }))
         return { id, unassignedTasks: unassigned }
+      }),
+    reactivateMember: (id) =>
+      respond(() => {
+        requireAdmin()
+        const member = findMember(id, { includeDeactivated: true })
+        if (isActive(member)) return publicUser(member)
+        const { deactivatedAt: _deactivatedAt, ...reactivated } = member
+        saveUsers(loadUsers().map((user) => (user.id === id ? reactivated : user)))
+        return publicUser(reactivated)
       }),
   }
 
